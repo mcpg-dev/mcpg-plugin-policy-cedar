@@ -1,0 +1,17 @@
+schema: mcpg.dev/plugin/v1
+id: dev.mcpg.policy.cedar
+name: Cedar Policy Engine
+license: BUSL-1.1
+description: |
+  Embedded AWS Cedar authorization engine. Operators
+  supply a directory of `.cedar` policy files; the plugin builds
+  a Cedar PolicySet at boot and evaluates per-request envelopes
+  against it. Cedar's typed entity model provides
+  `principal x action x resource` authorization with
+  `permit` / `forbid` policies and `when` / `unless` conditions.
+  Pure offline; ~3MB stripped cdylib (smaller than OPA-embedded's
+  ~8MB; larger than Casbin's ~2MB).
+class: policy_engine
+runtime: native-cdylib-v1
+protocol_version: "1.0"
+required_capabilities: []

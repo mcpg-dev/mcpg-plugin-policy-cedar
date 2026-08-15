@@ -1,0 +1,55 @@
+[package]
+name = "mcpg-plugin-policy-cedar"
+version = "0.1.0-alpha.15"
+license = "BUSL-1.1"
+edition = "2024"
+description = "Cedar policy_engine plugin for MCPG gateway (dev.mcpg.policy.cedar)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mcpg-plugin-protocol = { git = "https://github.com/mcpg-dev/mcpg-plugin-protocol", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13" }
+mcpg-cluster-api = { git = "https://github.com/mcpg-dev/mcpg-cluster-api", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13" }
+# `static-firstparty` exposes
+# `HostHandle::from_services` so the L.6 integration test (and
+# any future Recorder-style host doubles) can construct a host
+# handle from a `HostServices` trait object instead of the FFI
+# `HostHandleRef`. The cdylib build is unaffected — the feature
+# only gates the in-process construction surface.
+mcpg-plugin-sdk = { git = "https://github.com/mcpg-dev/mcpg-plugin-sdk", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13", features = ["static-firstparty"] }
+mcpg-bundle-reload = { git = "https://github.com/mcpg-dev/mcpg-bundle-reload", tag = "v0.1.0-beta.13", version = "=0.1.0-beta.13", default-features = false }
+async-trait = "0.1"
+# `cluster.publish` takes a `Bytes` payload (no copy on the FFI hot
+# path). Pulled in directly for the policies-loaded heartbeat publish
+# on plugin startup.
+bytes = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+tracing = "0.1"
+# Phase 6c-23: per-evaluate counters + latency histogram so the
+# operator-side observability triad has visibility into policy
+# decision rates and percentile latency.
+metrics = "0.24"
+
+# AWS Cedar policy engine. Pure-Rust evaluator; no external server.
+cedar-policy = "4"
+
+[dev-dependencies]
+# Recorder-based HostHandle integration tests
+# need the host-side `HostServices` trait to build a test double.
+
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+
+[features]
+default = ["cdylib-export"]
+cdylib-export = []
+# Declared so the SDK's `declare_policy_engine_plugin!` `build_static`
+# accessor (gated `#[cfg(feature = "static-firstparty")]`) does not
+# trigger `unexpected_cfgs` in consumer compilation. Empty: this plugin
+# is consumed as a cdylib, not via the static-firstparty fast path.
+static-firstparty = []
