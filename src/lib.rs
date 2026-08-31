@@ -1072,6 +1072,7 @@ impl CedarPolicyPlugin {
             resource: Some(resource_uri),
             outcome: audit_outcome,
             request_id: Some(context.request_id.clone()),
+            upstream_request_id: None,
             node_id: None,
             details,
             prev_event_hash: None,
