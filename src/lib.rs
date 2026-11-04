@@ -578,6 +578,29 @@ fn parse_bundle_with_schema(
     })
 }
 
+/// The document `resource_id_path` points into: the evaluation input with
+/// the gateway's own request facts on top. `/tool` and `/surface` are the
+/// request's tool name and surface, so a caller's arguments (the input at
+/// `tool.call.pre`) cannot choose the resource. A non-object input sits
+/// under `/input`.
+fn resource_lookup_document(input: &Value, context: &PluginContext) -> Value {
+    let mut doc = match input {
+        Value::Object(map) => map.clone(),
+        other => {
+            let mut map = serde_json::Map::new();
+            map.insert("input".to_owned(), other.clone());
+            map
+        }
+    };
+    if !context.tool_name.is_empty() {
+        doc.insert("tool".to_owned(), Value::String(context.tool_name.clone()));
+    }
+    if !context.surface.is_empty() {
+        doc.insert("surface".to_owned(), Value::String(context.surface.clone()));
+    }
+    Value::Object(doc)
+}
+
 fn quote_uid_id(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -616,10 +639,11 @@ fn build_request(
              (and no `*` catch-all configured)"
         )
     })?;
+    let lookup = resource_lookup_document(input, context);
     let resource_id = if resource_entry.resource_id_path.is_empty() {
         "unspecified".to_owned()
     } else {
-        match input.pointer(&resource_entry.resource_id_path) {
+        match lookup.pointer(&resource_entry.resource_id_path) {
             Some(Value::String(s)) => s.clone(),
             Some(Value::Number(n)) => n.to_string(),
             Some(other) => other.to_string(),
@@ -1284,11 +1308,13 @@ mod tests {
         CedarPolicyPlugin::from_config_json(&cfg.to_string())
     }
 
+    /// A request with no tool name, so `/tool` reads the input; the tests
+    /// that pin the request's tool name set it.
     fn ctx(subject: &str) -> PluginContext {
         PluginContext {
             request_id: "r1".into(),
             session_id: None,
-            tool_name: "tool".into(),
+            tool_name: String::new(),
             surface: "tool".into(),
             identity: PluginIdentity {
                 kind: "verified".into(),
@@ -1419,14 +1445,29 @@ mod tests {
             );"#],
             standard_translation(),
         );
-        // Resource id is taken from input.tool path.
-        let dec = SyncPolicyEngine::evaluate(
-            &plugin,
-            "read",
-            &json!({ "tool": "orders" }),
-            &ctx("alice"),
-        );
+        // `/tool` is the request's tool name.
+        let mut c = ctx("alice");
+        c.tool_name = "orders".into();
+        let dec = SyncPolicyEngine::evaluate(&plugin, "read", &json!({}), &c);
         assert_eq!(dec.effect, PolicyEffect::Allow);
+    }
+
+    #[test]
+    fn arguments_cannot_choose_the_resource() {
+        let plugin = build(
+            &[r#"permit(
+                principal,
+                action == Action::"read",
+                resource == Tool::"orders"
+            );"#],
+            standard_translation(),
+        );
+        // The caller names another tool in its arguments; the request's own
+        // tool name wins, so the permit for `orders` does not apply.
+        let mut c = ctx("alice");
+        c.tool_name = "admin.wipe".into();
+        let dec = SyncPolicyEngine::evaluate(&plugin, "read", &json!({ "tool": "orders" }), &c);
+        assert_ne!(dec.effect, PolicyEffect::Allow);
     }
 
     #[test]
@@ -1439,9 +1480,11 @@ mod tests {
             );"#],
             standard_translation(),
         );
-        // Input doesn't contain "tool" path → resource id "unknown".
-        let dec =
-            SyncPolicyEngine::evaluate(&plugin, "read", &json!({ "other": "x" }), &ctx("alice"));
+        // A request without a tool name, and an input without "tool" →
+        // resource id "unknown".
+        let mut c = ctx("alice");
+        c.tool_name = String::new();
+        let dec = SyncPolicyEngine::evaluate(&plugin, "read", &json!({ "other": "x" }), &c);
         assert_eq!(dec.effect, PolicyEffect::Allow);
     }
 

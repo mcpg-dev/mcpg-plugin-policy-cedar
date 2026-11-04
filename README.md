@@ -62,7 +62,7 @@ plugins:
 | `include_input_as_context` | bool | `false` | Map request `input` JSON to Cedar's `Context`. |
 | `translation.principal_type` | string | — | Cedar entity type for the principal. |
 | `translation.action_namespace` | string | — | Cedar action namespace. |
-| `translation.resource_types` | type[] | — | Per-decision-point `{ decision_point, resource_type, resource_id_path }`; non-empty, `*` catch-all allowed. |
+| `translation.resource_types` | type[] | — | Per-decision-point `{ decision_point, resource_type, resource_id_path }`; non-empty, `*` catch-all allowed. `resource_id_path` is a JSON Pointer into the evaluation input with the request's own facts on top: `/tool` is the request's tool name and `/surface` its surface, whatever the caller's arguments hold. Any other path reads the input, which at `tool.call.pre` is the caller's tool arguments. |
 | `translation.anonymous_principal_id` | string | `"anonymous"` | Principal id when `subject_id` is absent. |
 | `evaluation.on_default_deny` | enum | `not_applicable` | `not_applicable` (compose) or `deny` (strict). |
 | `reload.enabled` | bool | `false` | Poll `policy_dir` and hot-swap the PolicySet. |
